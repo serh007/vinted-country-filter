@@ -2,6 +2,16 @@
 
 A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **Vinted.lt** (Lithuania) that shows each seller's country right on item cards and provides a compact client-side country filter bar.
 
+## Screenshots
+
+**Country badges on item cards (with local Lithuania listings highlighted in green):**
+
+![Country badges on Vinted.lt](./assets/badges-all.png)
+
+**One-click country filter (`Lithuania` selected — non-matching items hidden with clean grid reflow):**
+
+![Filtering by Lithuania on Vinted.lt](./assets/filter-lithuania.png)
+
 ## Features
 
 - **Country badges with crisp inline SVG flags** — Renders consistently on Windows, Linux, and macOS without loading external images. Local Lithuania (`LT`) listings are highlighted in green so they stand out immediately from `LV`, `EE`, `PL`, `FI`, `SE`, etc.
