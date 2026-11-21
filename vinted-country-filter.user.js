@@ -753,6 +753,11 @@
             }
             #vlt-filter-bar .vlt-bar-progress, #vlt-settings-popover .vlt-settings-title {
                 color: #4fd1c5;
+            }
+            #vlt-settings-popover .vlt-shipping-input {
+                background: #232936;
+                border-color: rgba(255, 255, 255, 0.22);
+                color: #f1f5f9;
             }` : CONFIG.THEME === 'auto' ? `
             @media (prefers-color-scheme: dark) {
                 #vlt-filter-bar, #vlt-settings-popover {
@@ -785,6 +790,11 @@
                 #vlt-filter-bar .vlt-bar-progress, #vlt-settings-popover .vlt-settings-title {
                     color: #4fd1c5;
                 }
+                #vlt-settings-popover .vlt-shipping-input {
+                    background: #232936;
+                    border-color: rgba(255, 255, 255, 0.22);
+                    color: #f1f5f9;
+                }
             }` : ''}
 
             /* Estimated total price (item + Buyer Protection + shipping) */
@@ -792,7 +802,7 @@
                 font-size: 11px;
                 font-weight: 600;
                 line-height: 1.3;
-                color: #007782;
+                color: #005f68;
                 margin-top: 2px;
                 white-space: nowrap;
             }
@@ -819,13 +829,13 @@
                 gap: 6px;
                 font-size: 11.5px;
             }
-            .vlt-shipping-input {
+            #vlt-settings-popover .vlt-shipping-input {
                 width: 60px;
                 padding: 2px 5px;
                 border-radius: 6px;
-                border: 1px solid rgba(128, 128, 128, 0.35);
-                background: transparent;
-                color: inherit;
+                border: 1px solid rgba(0, 0, 0, 0.22);
+                background: #ffffff;
+                color: #111827;
                 font-size: 11.5px;
                 text-align: right;
             }
@@ -833,19 +843,12 @@
                 margin-top: 6px;
                 padding: 6px 10px;
                 border-radius: 8px;
-                background: rgba(0, 119, 130, 0.08);
-                border: 1px solid rgba(0, 119, 130, 0.25);
-                color: #007782;
+                background: #eef7f8;
+                border: 1px solid #99d3d8;
+                color: #005b63;
                 font-size: 13px;
                 font-weight: 600;
                 line-height: 1.35;
-            }
-            @media (prefers-color-scheme: dark) {
-                .vlt-detail-total {
-                    background: rgba(79, 209, 197, 0.12);
-                    border-color: rgba(79, 209, 197, 0.3);
-                    color: #4fd1c5;
-                }
             }
         `;
         document.head.appendChild(style);
