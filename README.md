@@ -54,7 +54,8 @@ All options live in the `CONFIG` object at the top of [`vinted-country-filter.us
 | `DISPLAY_LOCALE` | `'en'` | Language for UI & country names: `'en'`, `'lt'`, `'uk'`, or `'auto'` (follows Vinted's page language) |
 | `THEME` | `'auto'` | UI theme for filter bar & settings: `'auto'` (follows OS/browser dark mode), `'light'`, or `'dark'` |
 | `SHOW_FULL_TITLE` | `true` | Show full untruncated item title on cards (can also be toggled in the `⚙️` settings popover) |
-| `SHOW_TOTAL_PRICE` | `true` | Show estimated final price including Buyer Protection + shipping on cards (also toggleable in `⚙️`) |
+| `SHOW_TOTAL_PRICE` | `true` | Show estimated final price including Buyer Protection + shipping on cards & exact total on item pages (also toggleable in `⚙️`) |
+| `EXACT_CARD_PRICE` | `false` | Fetch exact per-item shipping on catalog cards via Vinted's Edge API (unchecked by default; auto-enabled when country filter leaves ≤15 items) |
 | `DEFAULT_SHIPPING_RATES` | `{ DEFAULT: 4.99, ... }` | Default per-country shipping rates used in total price calculation (editable in `⚙️`) |
 | `SHOW_CITY` | `false` | Show seller city alongside country on item badges (e.g., `Lithuania · Vilnius`, also toggleable in `⚙️`) |
 | `SHOW_RATING` | `false` | Show seller rating & review count on item badges (e.g., `Lithuania · ★4.9 (42)`, also toggleable in `⚙️`) |
