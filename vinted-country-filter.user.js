@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Vinted Country Badge & Filter
 // @namespace    https://github.com/
-// @version      1.4.0
+// @version      1.5.0
 // @description  Displays seller country badges and full item titles on Vinted cards, and lets you filter items by country across all Vinted domains (React Fiber + /api/v2/users, no captcha or login required)
 // @license      MIT
 // @match        https://www.vinted.lt/*
@@ -214,7 +214,7 @@
                 modeDim: 'Затемнювати інші країни',
                 collapse: 'Згорнути панель',
                 expand: 'Фільтр країн',
-                multiHint: 'Клік — тільки ця країна · Ctrl+клік — кілька країн',
+                multiHint: 'Клік — увімкнути/вимкнути країну (можна кілька)',
                 settings: 'Налаштування',
                 showFullTitle: 'Показувати повну назву товару',
                 showCity: 'Показувати місто продавця',
@@ -227,7 +227,7 @@
                 modeDim: 'Dim non-matching items',
                 collapse: 'Minimize bar',
                 expand: 'Country filter',
-                multiHint: 'Click — only this country · Ctrl+click — multiple countries',
+                multiHint: 'Click to toggle country (multiple allowed)',
                 settings: 'Settings',
                 showFullTitle: 'Show full item title',
                 showCity: 'Show seller city on badges',
@@ -239,7 +239,7 @@
             modeDim: 'Pritemdyti kitas šalis',
             collapse: 'Sutraukti juostą',
             expand: 'Šalies filtras',
-            multiHint: 'Paspaudimas — tik ši šalis · Ctrl+paspaudimas — kelios šalys',
+            multiHint: 'Spustelėkite šalį (galima pasirinkti kelias)',
             settings: 'Nustatymai',
             showFullTitle: 'Rodyti visą prekės pavadinimą',
             showCity: 'Rodyti pardavėjo miestą',
@@ -740,6 +740,7 @@
     const inFlight = new Set();
 
     let activeWorkers = 0;
+    let requestsSent = 0;
     let backoffMs = 0;
     let pausedUntil = 0;
     let resumeTimer = null;
@@ -1049,6 +1050,8 @@
     async function runWorker(uid) {
         activeWorkers++;
         inFlight.add(uid);
+        requestsSent++;
+        scheduleBarRender();
         try {
             const response = await fetch(`/api/v2/users/${uid}`, {
                 credentials: 'include',
@@ -1192,22 +1195,11 @@
         requestAnimationFrame(renderFilterBar);
     }
 
-    function onCountryChipClick(iso, e) {
-        const multi = e.ctrlKey || e.metaKey || e.shiftKey;
-        if (multi) {
-            if (filterState.selected.has(iso)) {
-                filterState.selected.delete(iso);
-            } else {
-                filterState.selected.add(iso);
-            }
+    function onCountryChipClick(iso) {
+        if (filterState.selected.has(iso)) {
+            filterState.selected.delete(iso);
         } else {
-            // Regular click: filter to only this country; clicking again resets to "All"
-            if (filterState.selected.size === 1 && filterState.selected.has(iso)) {
-                filterState.selected.clear();
-            } else {
-                filterState.selected.clear();
-                filterState.selected.add(iso);
-            }
+            filterState.selected.add(iso);
         }
         saveFilterState();
         applyFilterToAllCards();
@@ -1357,12 +1349,13 @@
         }
 
         const isCoolingDown = Date.now() < pausedUntil;
+        const isFetching = activeWorkers > 0 || fetchQueue.size > 0;
         const countsSig = Array.from(counts.entries())
             .sort((a, b) => a[0].localeCompare(b[0]))
             .map(([k, v]) => `${k}:${v}`)
             .join(',');
         const selectedSig = Array.from(filterState.selected).sort().join(',');
-        const signature = `${filterState.collapsed ? 1 : 0}|${filterState.mode}|${selectedSig}|${resolvedCards}/${totalCards}|${isCoolingDown ? 1 : 0}|${countsSig}`;
+        const signature = `${filterState.collapsed ? 1 : 0}|${filterState.mode}|${selectedSig}|${resolvedCards}/${totalCards}|${requestsSent}|${isFetching ? 1 : 0}|${isCoolingDown ? 1 : 0}|${countsSig}`;
         if (signature === lastBarSignature) return;
         lastBarSignature = signature;
 
@@ -1374,16 +1367,28 @@
             }
             expandBtnEl.className = isFilterActive() ? 'vlt-chip vlt-chip-active' : 'vlt-chip';
             expandBtnEl.textContent = '';
+
             if (isFilterActive()) {
                 const selectedList = Array.from(filterState.selected);
-                expandBtnEl.appendChild(createFlagNode(selectedList[0]));
+                selectedList.slice(0, 3).forEach((iso) => expandBtnEl.appendChild(createFlagNode(iso)));
                 const lbl = document.createElement('span');
                 lbl.textContent = selectedList.length === 1
                     ? getCountryLabel(selectedList[0], selectedList[0], true)
                     : selectedList.join('+');
                 expandBtnEl.appendChild(lbl);
             } else {
-                expandBtnEl.textContent = `🌍 ${ui.expand}`;
+                const lbl = document.createElement('span');
+                lbl.textContent = `🌍 ${ui.expand}`;
+                expandBtnEl.appendChild(lbl);
+            }
+
+            if (isFetching || isCoolingDown || isFilterActive() || requestsSent > 0) {
+                const status = document.createElement('span');
+                status.className = 'vlt-chip-count';
+                const prefix = (isFetching || isCoolingDown) ? '⏳ ' : '';
+                const reqSuffix = requestsSent > 0 ? ` · ${requestsSent} req` : '';
+                status.textContent = `${prefix}${resolvedCards}/${totalCards}${reqSuffix}`;
+                expandBtnEl.appendChild(status);
             }
             return;
         }

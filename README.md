@@ -18,11 +18,10 @@ A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **all
 
 - **Universal Vinted support** — Works across `.lt`, `.pl`, `.fr`, `.de`, `.nl`, `.be`, `.es`, `.it`, `.pt`, `.at`, `.lu`, `.se`, `.dk`, `.fi`, `.cz`, `.sk`, `.hu`, `.ro`, `.bg`, `.hr`, `.si`, `.gr`, `.ie`, `.co.uk`, `.com`, and `.com.au`. Automatically highlights sellers from your current domain's country in green and picks regional filter defaults.
 - **Country badges with crisp inline SVG flags** — Renders consistently on Windows, Linux, and macOS without loading external images.
-- **One-click country filter bar** — Compact floating bar at the bottom of catalog/feed pages:
-  - **Click** a country chip to show items only from that country (click again or click **All** to reset).
-  - **`Ctrl + Click`** (or `Shift + Click`) to select multiple countries at once (e.g., `LT + LV + EE`).
+- **Multi-country toggle filter bar** — Compact floating bar at the bottom of catalog/feed pages:
+  - **Click** any country chip to toggle it on/off — easily pick one country or any combination of countries (`LT + LV + EE`), or click **All** to reset.
   - **Hide (`🚫`) or Dim (`👁️`) mode** — Hide mode removes non-matching grid cells cleanly so matching items reflow with zero gaps.
-  - **Collapsible (`−`)** — Minimizes to a tiny corner pill; filter preferences persist per domain across pages and reloads.
+  - **Collapsible to bottom-right (`−`)** — Minimizes to a compact corner pill showing selected countries, live scan progress, and API request count; preferences persist per domain across pages and reloads.
 - **Full item titles on cards (enabled by default)** — Reveals the complete, untruncated item title directly on every card (e.g., `Zotac Gaming GeForce RTX 3070 Ti Trinity 8GB GDDR6X RGB`) with **0 extra network requests**, toggleable via the `⚙️` settings popover.
 - **No Cloudflare 403 captcha popups & no login required** — Uses `/api/v2/users/{userId}` with `Accept: application/json` instead of the heavily challenge-gated `/api/v2/items/{itemId}/details` endpoint.
 - **Works with any Vinted language** — Reads canonical ISO-2 country codes (`country_iso_code`) and formats names via `Intl.DisplayNames` (no need to switch Vinted to English).
