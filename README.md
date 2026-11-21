@@ -1,25 +1,26 @@
-# Vinted.lt Country Badge & Filter
+# Vinted Country Badge & Filter
 
-A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **Vinted.lt** (Lithuania) that shows each seller's country right on item cards and provides a compact client-side country filter bar.
+A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **all Vinted domains** that displays each seller's country right on item cards and provides a compact client-side country filter bar.
 
 ## Screenshots
 
-**Country badges on item cards (with local Lithuania listings highlighted in green):**
+**Country badges on item cards (with sellers from your current Vinted domain highlighted in green):**
 
-![Country badges on Vinted.lt](./assets/badges-all.png)
+![Country badges on Vinted](./assets/badges-all.png)
 
 **One-click country filter (`Lithuania` selected — non-matching items hidden with clean grid reflow):**
 
-![Filtering by Lithuania on Vinted.lt](./assets/filter-lithuania.png)
+![Filtering by country on Vinted](./assets/filter-lithuania.png)
 
 ## Features
 
-- **Country badges with crisp inline SVG flags** — Renders consistently on Windows, Linux, and macOS without loading external images. Local Lithuania (`LT`) listings are highlighted in green so they stand out immediately from `LV`, `EE`, `PL`, `FI`, `SE`, etc.
+- **Universal Vinted support** — Works across `.lt`, `.pl`, `.fr`, `.de`, `.nl`, `.be`, `.es`, `.it`, `.pt`, `.at`, `.lu`, `.se`, `.dk`, `.fi`, `.cz`, `.sk`, `.hu`, `.ro`, `.bg`, `.hr`, `.si`, `.gr`, `.ie`, `.co.uk`, `.com`, and `.com.au`. Automatically highlights sellers from your current domain's country in green and picks regional filter defaults.
+- **Country badges with crisp inline SVG flags** — Renders consistently on Windows, Linux, and macOS without loading external images.
 - **One-click country filter bar** — Compact floating bar at the bottom of catalog/feed pages:
   - **Click** a country chip to show items only from that country (click again or click **All** to reset).
   - **`Ctrl + Click`** (or `Shift + Click`) to select multiple countries at once (e.g., `LT + LV + EE`).
   - **Hide (`🚫`) or Dim (`👁️`) mode** — Hide mode removes non-matching grid cells cleanly so matching items reflow with zero gaps.
-  - **Collapsible (`−`)** — Minimizes to a tiny corner pill; filter preferences persist across pages and reloads.
+  - **Collapsible (`−`)** — Minimizes to a tiny corner pill; filter preferences persist per domain across pages and reloads.
 - **No Cloudflare 403 captcha popups & no login required** — Uses `/api/v2/users/{userId}` with `Accept: application/json` instead of the heavily challenge-gated `/api/v2/items/{itemId}/details` endpoint.
 - **Works with any Vinted language** — Reads canonical ISO-2 country codes (`country_iso_code`) and formats names via `Intl.DisplayNames` (no need to switch Vinted to English).
 - **Seller-level LRU caching** — Caches by `userId` (not `itemId`) for 14 days in a single bounded `localStorage` key (up to 5,000 sellers). Seeing a seller once resolves all their other listings instantly with zero extra requests.
@@ -31,28 +32,28 @@ A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **Vin
 2. It checks the local seller cache (`vlt_seller_country_cache_v1`). Cached sellers are labeled immediately.
 3. For uncached visible cards (or remaining page cards when a country filter is active), it fetches `/api/v2/users/{userId}` with `Accept: application/json`, caches the seller's `country_iso_code` and `city`, and updates all cards belonging to that seller at once.
 
-> **Note on server-side filtering:** Vinted ignores `country_ids[]` query parameters on `vinted.lt` and does not include seller country in catalog search payloads or expose a batch user lookup endpoint. Fetching once per unique seller and caching by seller ID minimizes total requests.
+> **Note on server-side filtering:** Vinted ignores `country_ids[]` query parameters and does not include seller country in catalog search payloads or expose a batch user lookup endpoint. Fetching once per unique seller and caching by seller ID minimizes total requests.
 
 ## Installation
 
 1. Install a userscript manager in your browser:
    - [Tampermonkey](https://www.tampermonkey.net/) (Chrome, Firefox, Edge, Safari)
    - [Violentmonkey](https://violentmonkey.github.io/) (Chrome, Firefox, Edge)
-2. Create a new userscript and paste the contents of [`vinted-lt-country.user.js`](./vinted-lt-country.user.js) (or open its Raw URL directly on GitHub to install in one click).
-3. Visit `https://www.vinted.lt/` and browse normally.
+2. Create a new userscript and paste the contents of [`vinted-country-filter.user.js`](./vinted-country-filter.user.js) (or open its Raw URL directly on GitHub to install in one click).
+3. Visit any supported Vinted site and browse normally.
 
 ## Configuration
 
-All options live in the `CONFIG` object at the top of [`vinted-lt-country.user.js`](./vinted-lt-country.user.js):
+All options live in the `CONFIG` object at the top of [`vinted-country-filter.user.js`](./vinted-country-filter.user.js):
 
 | Option | Default | Description |
 |---|---|---|
 | `DISPLAY_LOCALE` | `'en'` | Language for UI & country names: `'en'`, `'lt'`, `'uk'`, or `'auto'` (follows Vinted's page language) |
 | `SHOW_CITY` | `false` | Show seller city alongside country on item badges (e.g., `Lithuania · Vilnius`) |
 | `SHORT_CODE` | `false` | Show 2-letter ISO code (`LT`, `PL`, `FI`) instead of full country name on badges |
-| `HIGHLIGHT_LOCAL` | `true` | Highlight Lithuania (`LT`) badges in green |
+| `HIGHLIGHT_LOCAL` | `true` | Highlight sellers from the current domain's country in green |
 | `SHOW_FILTER_BAR` | `true` | Show the floating bottom country filter bar (`false` for badges-only mode) |
-| `DEFAULT_FILTER_COUNTRIES` | `['LT', 'LV', 'EE', 'PL', 'FI', 'SE']` | Core country chips always shown in the filter bar (other detected countries are added automatically) |
+| `DEFAULT_FILTER_COUNTRIES` | `'auto'` | `'auto'` picks regional countries for the current domain, or pass an explicit array like `['LT', 'LV', 'EE']` |
 | `CONCURRENCY` | `1` | Parallel API requests (keep `1` for gentlest pacing) |
 | `REQUEST_DELAY_MS` | `800` | Base delay between requests in milliseconds |
 | `REQUEST_JITTER_MS` | `400` | Random extra delay (`0..N` ms) added between requests |

@@ -1,10 +1,35 @@
 // ==UserScript==
-// @name         Vinted.lt Country Badge & Filter
-// @namespace    https://www.vinted.lt/
-// @version      1.2.0
-// @description  Displays seller country badges on Vinted.lt item cards and lets you filter items by country using React Fiber + /api/v2/users (no captcha, no forced English, no login required)
+// @name         Vinted Country Badge & Filter
+// @namespace    https://github.com/
+// @version      1.3.0
+// @description  Displays seller country badges on Vinted item cards and lets you filter items by country across all Vinted domains (React Fiber + /api/v2/users, no captcha or login required)
 // @license      MIT
 // @match        https://www.vinted.lt/*
+// @match        https://www.vinted.pl/*
+// @match        https://www.vinted.fr/*
+// @match        https://www.vinted.de/*
+// @match        https://www.vinted.nl/*
+// @match        https://www.vinted.be/*
+// @match        https://www.vinted.es/*
+// @match        https://www.vinted.it/*
+// @match        https://www.vinted.pt/*
+// @match        https://www.vinted.at/*
+// @match        https://www.vinted.lu/*
+// @match        https://www.vinted.se/*
+// @match        https://www.vinted.dk/*
+// @match        https://www.vinted.fi/*
+// @match        https://www.vinted.cz/*
+// @match        https://www.vinted.sk/*
+// @match        https://www.vinted.hu/*
+// @match        https://www.vinted.ro/*
+// @match        https://www.vinted.bg/*
+// @match        https://www.vinted.hr/*
+// @match        https://www.vinted.si/*
+// @match        https://www.vinted.gr/*
+// @match        https://www.vinted.ie/*
+// @match        https://www.vinted.co.uk/*
+// @match        https://www.vinted.com/*
+// @match        https://www.vinted.com.au/*
 // @grant        none
 // @run-at       document-end
 // @noframes
@@ -28,12 +53,12 @@
         SHOW_CITY: false,
         // Use 2-letter ISO code instead of full country name on badges (true -> "LT", false -> "Lithuania")
         SHORT_CODE: false,
-        // Highlight local Lithuania (LT) badges in green
+        // Highlight sellers from the current Vinted domain's local country in green
         HIGHLIGHT_LOCAL: true,
         // Show compact bottom country filter bar
         SHOW_FILTER_BAR: true,
-        // Core Vinted.lt market countries always shown in the filter bar
-        DEFAULT_FILTER_COUNTRIES: ['LT', 'LV', 'EE', 'PL', 'FI', 'SE'],
+        // 'auto' picks regional countries for the current domain, or pass an explicit array like ['LT', 'LV', 'EE']
+        DEFAULT_FILTER_COUNTRIES: 'auto',
         // Gentle mode: 1 request at a time to minimize rate-limit (429) hits
         CONCURRENCY: 1,
         // Base delay between requests (ms)
@@ -48,7 +73,33 @@
         CACHE_MAX_USERS: 5000,
     };
 
-    const LOCAL_COUNTRY_ISO = 'LT';
+    function detectLocalCountryIso() {
+        const host = location.hostname.toLowerCase();
+        if (host.endsWith('.co.uk')) return 'GB';
+        if (host.endsWith('.com.au')) return 'AU';
+        if (host.endsWith('.com')) return 'US';
+        const parts = host.split('.');
+        const tld = parts[parts.length - 1] || '';
+        return tld.length === 2 ? tld.toUpperCase() : '';
+    }
+
+    function getDefaultFilterCountries(localIso) {
+        if (Array.isArray(CONFIG.DEFAULT_FILTER_COUNTRIES)) {
+            return CONFIG.DEFAULT_FILTER_COUNTRIES;
+        }
+        const clusters = [
+            ['LT', 'LV', 'EE', 'PL', 'FI', 'SE', 'DK'],
+            ['FR', 'BE', 'NL', 'DE', 'IT', 'ES', 'PT', 'AT', 'LU'],
+            ['CZ', 'SK', 'PL', 'HU', 'RO', 'BG', 'HR', 'SI', 'GR'],
+            ['GB', 'IE'],
+        ];
+        const match = clusters.find((group) => group.includes(localIso));
+        if (match) return match;
+        return localIso ? [localIso] : [];
+    }
+
+    const LOCAL_COUNTRY_ISO = detectLocalCountryIso();
+    const DEFAULT_COUNTRIES = getDefaultFilterCountries(LOCAL_COUNTRY_ISO);
     const CACHE_STORAGE_KEY = 'vlt_seller_country_cache_v1';
     const FILTER_STORAGE_KEY = 'vlt_country_filter_state_v1';
     const CACHE_TTL_MS = CONFIG.CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
@@ -86,6 +137,8 @@
         SI: '<rect width="18" height="4" fill="#FFF"/><rect y="4" width="18" height="4" fill="#005CE6"/><rect y="8" width="18" height="4" fill="#ED1C24"/>',
         GR: '<rect width="18" height="12" fill="#0D5EAF"/><rect y="1.4" width="18" height="1.3" fill="#FFF"/><rect y="4.1" width="18" height="1.3" fill="#FFF"/><rect y="6.8" width="18" height="1.3" fill="#FFF"/><rect y="9.5" width="18" height="1.3" fill="#FFF"/><rect width="7" height="6.8" fill="#0D5EAF"/><rect x="2.8" width="1.4" height="6.8" fill="#FFF"/><rect y="2.7" width="7" height="1.4" fill="#FFF"/>',
         GB: '<rect width="18" height="12" fill="#012169"/><path d="M0,0 L18,12 M18,0 L0,12" stroke="#FFF" stroke-width="2.2"/><path d="M0,0 L18,12 M18,0 L0,12" stroke="#C8102E" stroke-width="1"/><path d="M9,0 V12 M0,6 H18" stroke="#FFF" stroke-width="3.6"/><path d="M9,0 V12 M0,6 H18" stroke="#C8102E" stroke-width="2"/>',
+        US: '<rect width="18" height="12" fill="#B22234"/><rect y="1.7" width="18" height="1.7" fill="#FFF"/><rect y="5.1" width="18" height="1.7" fill="#FFF"/><rect y="8.5" width="18" height="1.7" fill="#FFF"/><rect width="8" height="6.8" fill="#3C3B6E"/>',
+        AU: '<rect width="18" height="12" fill="#00008B"/><path d="M0,0 L8,6 M8,0 L0,6" stroke="#FFF" stroke-width="1.2"/><path d="M4,0 V6 M0,3 H8" stroke="#FFF" stroke-width="1.8"/><path d="M4,0 V6 M0,3 H8" stroke="#FF0000" stroke-width="1"/><circle cx="13.5" cy="4" r="1" fill="#FFF"/><circle cx="11.5" cy="8" r="0.9" fill="#FFF"/><circle cx="15" cy="8.5" r="0.9" fill="#FFF"/>',
     };
 
     function isoToEmoji(iso) {
@@ -1111,7 +1164,7 @@
         allChipBtn.classList.toggle('vlt-chip-active', !isFilterActive());
 
         // Collect country list and update chips in-place
-        const countries = new Set(CONFIG.DEFAULT_FILTER_COUNTRIES);
+        const countries = new Set(DEFAULT_COUNTRIES);
         for (const iso of counts.keys()) countries.add(iso);
         for (const iso of filterState.selected) countries.add(iso);
 
