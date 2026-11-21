@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Vinted Country Badge & Filter
 // @namespace    https://github.com/
-// @version      1.6.0
-// @description  Displays seller country badges and full item titles on Vinted cards, and lets you filter items by country across all Vinted domains (React Fiber + /api/v2/users, no captcha or login required)
+// @version      1.7.0
+// @description  Displays seller country badges, optional ratings, full item titles, and estimated total price with Buyer Protection & shipping on Vinted cards (React Fiber + /api/v2/users, no captcha or login required)
 // @license      MIT
 // @match        https://www.vinted.lt/*
 // @match        https://www.vinted.pl/*
@@ -53,6 +53,18 @@
         THEME: 'auto',
         // Show full item title on cards (enabled by default; can be toggled in the settings popover)
         SHOW_FULL_TITLE: true,
+        // Show estimated final price (item + Buyer Protection + shipping) on cards
+        SHOW_TOTAL_PRICE: true,
+        // Default estimated shipping prices per seller country (editable in Settings)
+        DEFAULT_SHIPPING_RATES: {
+            DEFAULT: 4.99,
+            LT: 1.99,
+            LV: 2.99,
+            EE: 2.99,
+            PL: 3.49,
+            FI: 5.69,
+            SE: 5.69,
+        },
         // Also display seller city on item badges (e.g. "Lithuania · Vilnius")
         SHOW_CITY: false,
         // Also display seller rating & review count on item badges (e.g. "Lithuania · ★4.9 (42)")
@@ -221,8 +233,11 @@
                 multiHint: 'Клік — увімкнути/вимкнути країну (можна кілька)',
                 settings: 'Налаштування',
                 showFullTitle: 'Показувати повну назву товару',
+                showTotalPrice: 'Показувати повну ціну з доставкою',
                 showCity: 'Показувати місто продавця',
                 showRating: 'Показувати рейтинг продавця',
+                shippingRatesTitle: 'Орієнтовна доставка (за країною)',
+                otherCountry: 'Інші',
             };
         }
         if (lang.startsWith('en')) {
@@ -235,8 +250,11 @@
                 multiHint: 'Click to toggle country (multiple allowed)',
                 settings: 'Settings',
                 showFullTitle: 'Show full item title',
+                showTotalPrice: 'Show total price (incl. shipping)',
                 showCity: 'Show seller city on badges',
                 showRating: 'Show seller rating on badges',
+                shippingRatesTitle: 'Est. shipping by country',
+                otherCountry: 'Other',
             };
         }
         return {
@@ -248,8 +266,11 @@
             multiHint: 'Spustelėkite šalį (galima pasirinkti kelias)',
             settings: 'Nustatymai',
             showFullTitle: 'Rodyti visą prekės pavadinimą',
+            showTotalPrice: 'Rodyti galutinę kainą su siuntimu',
             showCity: 'Rodyti pardavėjo miestą',
             showRating: 'Rodyti pardavėjo įvertinimą',
+            shippingRatesTitle: 'Apytikslis siuntimas pagal šalį',
+            otherCountry: 'Kita',
         };
     }
 
@@ -261,8 +282,10 @@
         mode: 'hide',        // 'hide' (remove from grid) | 'dim' (fade out)
         collapsed: false,
         showFullTitle: CONFIG.SHOW_FULL_TITLE,
+        showTotalPrice: CONFIG.SHOW_TOTAL_PRICE,
         showCity: CONFIG.SHOW_CITY,
         showRating: CONFIG.SHOW_RATING,
+        shippingRates: Object.assign({}, CONFIG.DEFAULT_SHIPPING_RATES),
     };
 
     function loadFilterState() {
@@ -286,11 +309,22 @@
             if (typeof parsed.showFullTitle === 'boolean') {
                 filterState.showFullTitle = parsed.showFullTitle;
             }
+            if (typeof parsed.showTotalPrice === 'boolean') {
+                filterState.showTotalPrice = parsed.showTotalPrice;
+            }
             if (typeof parsed.showCity === 'boolean') {
                 filterState.showCity = parsed.showCity;
             }
             if (typeof parsed.showRating === 'boolean') {
                 filterState.showRating = parsed.showRating;
+            }
+            if (parsed.shippingRates && typeof parsed.shippingRates === 'object') {
+                for (const [k, v] of Object.entries(parsed.shippingRates)) {
+                    const num = Number(v);
+                    if (Number.isFinite(num) && num >= 0) {
+                        filterState.shippingRates[k.toUpperCase()] = num;
+                    }
+                }
             }
         } catch {
             // Ignore corrupted state
@@ -306,8 +340,10 @@
                     mode: filterState.mode,
                     collapsed: filterState.collapsed,
                     showFullTitle: filterState.showFullTitle,
+                    showTotalPrice: filterState.showTotalPrice,
                     showCity: filterState.showCity,
                     showRating: filterState.showRating,
+                    shippingRates: filterState.shippingRates,
                 })
             );
         } catch {
@@ -735,15 +771,58 @@
                     color: #4fd1c5;
                 }
             }` : ''}
+
+            /* Estimated total price (item + Buyer Protection + shipping) */
+            .vlt-total-price {
+                font-size: 11px;
+                font-weight: 600;
+                line-height: 1.3;
+                color: #007782;
+                margin-top: 2px;
+                white-space: nowrap;
+            }
+            .vlt-shipping-section {
+                border-top: 1px solid rgba(128, 128, 128, 0.2);
+                padding-top: 8px;
+                margin-top: 2px;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .vlt-shipping-section.vlt-hidden {
+                display: none !important;
+            }
+            .vlt-shipping-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 6px 10px;
+            }
+            .vlt-shipping-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 6px;
+                font-size: 11.5px;
+            }
+            .vlt-shipping-input {
+                width: 60px;
+                padding: 2px 5px;
+                border-radius: 6px;
+                border: 1px solid rgba(128, 128, 128, 0.35);
+                background: transparent;
+                color: inherit;
+                font-size: 11.5px;
+                text-align: right;
+            }
         `;
         document.head.appendChild(style);
     }
 
     /* =========================
-       Seller userId & item title extraction via React Fiber (0 network requests)
+       Seller userId, item title & price extraction via React Fiber (0 network requests)
     ========================== */
     function extractItemMetaFromElement(el) {
-        if (!el) return { uid: null, title: '' };
+        if (!el) return { uid: null, title: '', priceAmount: null, currency: 'EUR' };
         let fiberKey = null;
         const keys = Object.keys(el);
         for (let i = 0; i < keys.length; i++) {
@@ -755,14 +834,16 @@
         let cur = fiberKey ? el[fiberKey] : null;
         let uid = null;
         let title = '';
+        let priceAmount = null;
+        let currency = 'EUR';
         for (let depth = 0; depth < 25 && cur; depth++) {
             const p = cur.memoizedProps;
             if (p) {
+                const itemObj = p.item || p.productItem;
                 if (!uid) {
                     const foundUid =
-                        p.item?.user?.id ||
-                        p.item?.user_id ||
-                        p.productItem?.user?.id ||
+                        itemObj?.user?.id ||
+                        itemObj?.user_id ||
                         p.user?.id ||
                         p.catalogTracking?.ownerId ||
                         p.tracking?.ownerId ||
@@ -770,22 +851,36 @@
                     if (foundUid) uid = String(foundUid);
                 }
                 if (!title) {
-                    const foundTitle =
-                        p.item?.title ||
-                        p.productItem?.title ||
-                        p.itemTitle;
+                    const foundTitle = itemObj?.title || p.itemTitle;
                     if (typeof foundTitle === 'string' && foundTitle.trim()) {
                         title = foundTitle.trim();
                     }
                 }
-                if (uid && title) break;
+                if (priceAmount === null) {
+                    const totalObj = itemObj?.totalItemPrice || p.totalItemPrice;
+                    if (totalObj && totalObj.amount != null) {
+                        const num = parseFloat(totalObj.amount);
+                        if (Number.isFinite(num)) {
+                            priceAmount = num;
+                            if (totalObj.currencyCode) currency = totalObj.currencyCode;
+                        }
+                    } else if (itemObj?.price && itemObj.price.amount != null) {
+                        const base = parseFloat(itemObj.price.amount);
+                        const fee = parseFloat(itemObj?.serviceFee?.amount || p.serviceFee?.amount || '0');
+                        if (Number.isFinite(base)) {
+                            priceAmount = base + (Number.isFinite(fee) ? fee : 0);
+                            if (itemObj.price.currencyCode) currency = itemObj.price.currencyCode;
+                        }
+                    }
+                }
+                if (uid && title && priceAmount !== null) break;
             }
             cur = cur.return;
         }
         if (!title && el.title) {
             title = el.title.split(',')[0].trim();
         }
-        return { uid, title };
+        return { uid, title, priceAmount, currency };
     }
 
     function extractUserIdFromElement(el) {
@@ -995,10 +1090,77 @@
         visibleCards.delete(container);
     }
 
-    function registerCard(container, uid, title) {
+    function getShippingRateForIso(iso) {
+        const rates = filterState.shippingRates || CONFIG.DEFAULT_SHIPPING_RATES;
+        const code = (iso || '').toUpperCase();
+        if (code && typeof rates[code] === 'number') {
+            return rates[code];
+        }
+        return typeof rates.DEFAULT === 'number' ? rates.DEFAULT : 4.99;
+    }
+
+    function formatMoney(amount, currency) {
+        const val = amount.toFixed(2);
+        if (!currency || currency === 'EUR') return `€${val}`;
+        if (currency === 'PLN') return `${val} zł`;
+        if (currency === 'GBP') return `£${val}`;
+        if (currency === 'USD') return `$${val}`;
+        return `${val} ${currency}`;
+    }
+
+    function renderTotalPrice(container, record) {
+        if (!container || !container.isConnected) return;
+        const box = container.closest('[class*="new-item-box__container"]') || container.parentElement;
+        if (!box) return;
+
+        const existing = box.querySelector('.vlt-total-price');
+        if (!filterState.showTotalPrice || typeof record?.priceAmount !== 'number') {
+            if (existing) existing.remove();
+            return;
+        }
+
+        const shipping = getShippingRateForIso(record.iso);
+        const total = record.priceAmount + shipping;
+        const approx = record.iso ? '' : '~';
+        const label = `📦 ${approx}${formatMoney(total, record.currency)} (+${formatMoney(shipping, record.currency)})`;
+
+        if (existing) {
+            if (existing.textContent !== label) {
+                existing.textContent = label;
+            }
+            return;
+        }
+
+        const anchor =
+            box.querySelector('[data-testid$="--breakdown"]') ||
+            box.querySelector('[data-testid$="--description"]');
+        if (!anchor) return;
+
+        const el = document.createElement('div');
+        el.className = 'vlt-total-price';
+        el.textContent = label;
+        anchor.appendChild(el);
+    }
+
+    function applyTotalPriceToAllCards() {
+        for (const [container, rec] of trackedCards.entries()) {
+            if (!container.isConnected) {
+                cleanupCard(container);
+                continue;
+            }
+            renderTotalPrice(container, rec);
+        }
+    }
+
+    function registerCard(container, uid, meta) {
+        const title = meta?.title || '';
+        const priceAmount = typeof meta?.priceAmount === 'number' ? meta.priceAmount : null;
+        const currency = meta?.currency || 'EUR';
         const prev = trackedCards.get(container);
         if (prev && prev.uid === uid) {
             if (title && prev.title !== title) prev.title = title;
+            if (priceAmount !== null) prev.priceAmount = priceAmount;
+            if (currency) prev.currency = currency;
             return prev;
         }
 
@@ -1015,7 +1177,9 @@
         container.dataset.vltUid = uid;
         const record = {
             uid,
-            title: title || '',
+            title,
+            priceAmount,
+            currency,
             iso: '',
             filterTarget: getFilterTarget(container, uid),
         };
@@ -1062,7 +1226,10 @@
                 rec.iso = iso;
             }
             renderBadge(el, uid, info);
-            if (rec) applyFilterToCard(rec);
+            if (rec) {
+                renderTotalPrice(el, rec);
+                applyFilterToCard(rec);
+            }
         }
         scheduleBarRender();
     }
@@ -1285,6 +1452,69 @@
                 reRenderAllBadges();
             })
         );
+
+        const shippingSection = document.createElement('div');
+        shippingSection.className = 'vlt-shipping-section';
+        shippingSection.style.display = filterState.showTotalPrice ? '' : 'none';
+
+        settingsPopoverEl.appendChild(
+            makeToggleRow(ui.showTotalPrice, filterState.showTotalPrice, (val) => {
+                filterState.showTotalPrice = val;
+                shippingSection.style.display = val ? '' : 'none';
+                saveFilterState();
+                applyTotalPriceToAllCards();
+            })
+        );
+
+        const shippingTitle = document.createElement('div');
+        shippingTitle.className = 'vlt-settings-subtitle';
+        shippingTitle.textContent = ui.shippingRatesTitle;
+        shippingSection.appendChild(shippingTitle);
+
+        const shippingGrid = document.createElement('div');
+        shippingGrid.className = 'vlt-shipping-grid';
+
+        const rateKeys = [...DEFAULT_COUNTRIES, 'DEFAULT'];
+        for (const key of rateKeys) {
+            const item = document.createElement('label');
+            item.className = 'vlt-shipping-item';
+
+            const label = document.createElement('span');
+            if (key === 'DEFAULT') {
+                label.textContent = ui.otherCountry;
+            } else {
+                label.appendChild(createFlagNode(key));
+                label.appendChild(document.createTextNode(` ${key}`));
+            }
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '0.01';
+            input.min = '0';
+            input.className = 'vlt-shipping-input';
+            const currentVal = filterState.shippingRates?.[key] ?? CONFIG.DEFAULT_SHIPPING_RATES[key] ?? CONFIG.DEFAULT_SHIPPING_RATES.DEFAULT;
+            input.value = Number(currentVal).toFixed(2);
+
+            const onRateChange = () => {
+                const parsed = parseFloat(input.value);
+                if (!Number.isFinite(parsed) || parsed < 0) return;
+                if (!filterState.shippingRates) {
+                    filterState.shippingRates = { ...CONFIG.DEFAULT_SHIPPING_RATES };
+                }
+                filterState.shippingRates[key] = parsed;
+                saveFilterState();
+                applyTotalPriceToAllCards();
+            };
+            input.addEventListener('input', onRateChange);
+            input.addEventListener('change', onRateChange);
+
+            item.appendChild(label);
+            item.appendChild(input);
+            shippingGrid.appendChild(item);
+        }
+
+        shippingSection.appendChild(shippingGrid);
+        settingsPopoverEl.appendChild(shippingSection);
 
         document.body.appendChild(settingsPopoverEl);
         return settingsPopoverEl;
@@ -1594,32 +1824,34 @@
             const container = link.closest('[class*="image-container"]') || link.parentElement;
             if (!container) continue;
 
-            const { uid, title } = extractItemMetaFromElement(link);
-            if (!uid) continue;
+            const meta = extractItemMetaFromElement(link);
+            if (!meta.uid) continue;
 
-            const record = registerCard(container, uid, title);
+            const record = registerCard(container, meta.uid, meta);
             renderFullTitle(container, record.title);
 
             // Render and filter immediately if seller is already cached
-            const cached = cacheGet(uid);
+            const cached = cacheGet(meta.uid);
             if (cached) {
                 record.iso = cached.iso.toUpperCase();
-                renderBadge(container, uid, cached);
+                renderBadge(container, meta.uid, cached);
+                renderTotalPrice(container, record);
                 applyFilterToCard(record);
                 continue;
             }
 
+            renderTotalPrice(container, record);
             applyFilterToCard(record);
 
             if (!observedContainers.has(container)) {
                 observedContainers.add(container);
                 viewportObserver.observe(container);
             } else if (visibleCards.has(container)) {
-                enqueueSeller(uid, true);
+                enqueueSeller(meta.uid, true);
             }
 
             if (filterActive) {
-                enqueueSeller(uid, false);
+                enqueueSeller(meta.uid, false);
             }
         }
 
@@ -1639,7 +1871,8 @@
             node.id === 'vlt-settings-popover' ||
             node.id === 'vlt-country-badge-styles' ||
             node.classList.contains('vlt-country-badge') ||
-            node.classList.contains('vlt-full-title')
+            node.classList.contains('vlt-full-title') ||
+            node.classList.contains('vlt-total-price')
         );
     }
 
@@ -1647,7 +1880,7 @@
         for (let i = 0; i < mutations.length; i++) {
             const m = mutations[i];
             const t = m.target;
-            if (t && t.nodeType === 1 && t.closest('#vlt-filter-bar, #vlt-settings-popover, .vlt-country-badge, .vlt-full-title')) {
+            if (t && t.nodeType === 1 && t.closest('#vlt-filter-bar, #vlt-settings-popover, .vlt-country-badge, .vlt-full-title, .vlt-total-price')) {
                 continue;
             }
             let hasExternalChange = false;

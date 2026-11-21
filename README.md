@@ -23,6 +23,7 @@ A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **all
   - **Hide (`🚫`) or Dim (`👁️`) mode** — Hide mode removes non-matching grid cells cleanly so matching items reflow with zero gaps.
   - **Collapsible to bottom-right (`−`)** — Minimizes to a compact corner pill showing selected countries, live scan progress, and API request count; preferences persist per domain across pages and reloads.
 - **Full item titles on cards (enabled by default)** — Reveals the complete, untruncated item title directly on every card (e.g., `Zotac Gaming GeForce RTX 3070 Ti Trinity 8GB GDDR6X RGB`) with **0 extra network requests**, toggleable via the `⚙️` settings popover.
+- **Estimated total price (enabled by default)** — Shows the estimated final parcel price (`≈ €XX.XX`) including Vinted's Buyer Protection fee (from catalog data) plus editable per-country shipping rates in `⚙️` settings.
 - **No Cloudflare 403 captcha popups & no login required** — Uses `/api/v2/users/{userId}` with `Accept: application/json` instead of the heavily challenge-gated `/api/v2/items/{itemId}/details` endpoint.
 - **Works with any Vinted language** — Reads canonical ISO-2 country codes (`country_iso_code`) and formats names via `Intl.DisplayNames` (no need to switch Vinted to English).
 - **Seller-level LRU caching** — Caches by `userId` (not `itemId`) for 14 days in a single bounded `localStorage` key (up to 5,000 sellers). Seeing a seller once resolves all their other listings instantly with zero extra requests.
@@ -53,6 +54,8 @@ All options live in the `CONFIG` object at the top of [`vinted-country-filter.us
 | `DISPLAY_LOCALE` | `'en'` | Language for UI & country names: `'en'`, `'lt'`, `'uk'`, or `'auto'` (follows Vinted's page language) |
 | `THEME` | `'auto'` | UI theme for filter bar & settings: `'auto'` (follows OS/browser dark mode), `'light'`, or `'dark'` |
 | `SHOW_FULL_TITLE` | `true` | Show full untruncated item title on cards (can also be toggled in the `⚙️` settings popover) |
+| `SHOW_TOTAL_PRICE` | `true` | Show estimated final price including Buyer Protection + shipping on cards (also toggleable in `⚙️`) |
+| `DEFAULT_SHIPPING_RATES` | `{ DEFAULT: 4.99, ... }` | Default per-country shipping rates used in total price calculation (editable in `⚙️`) |
 | `SHOW_CITY` | `false` | Show seller city alongside country on item badges (e.g., `Lithuania · Vilnius`, also toggleable in `⚙️`) |
 | `SHOW_RATING` | `false` | Show seller rating & review count on item badges (e.g., `Lithuania · ★4.9 (42)`, also toggleable in `⚙️`) |
 | `SHORT_CODE` | `false` | Show 2-letter ISO code (`LT`, `PL`, `FI`) instead of full country name on badges |
