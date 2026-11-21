@@ -754,7 +754,7 @@
             #vlt-filter-bar .vlt-bar-progress, #vlt-settings-popover .vlt-settings-title {
                 color: #4fd1c5;
             }
-            #vlt-settings-popover .vlt-shipping-input {
+            #vlt-settings-popover .vlt-shipping-grid .vlt-shipping-input {
                 background: #232936;
                 border-color: rgba(255, 255, 255, 0.22);
                 color: #f1f5f9;
@@ -790,7 +790,7 @@
                 #vlt-filter-bar .vlt-bar-progress, #vlt-settings-popover .vlt-settings-title {
                     color: #4fd1c5;
                 }
-                #vlt-settings-popover .vlt-shipping-input {
+                #vlt-settings-popover .vlt-shipping-grid .vlt-shipping-input {
                     background: #232936;
                     border-color: rgba(255, 255, 255, 0.22);
                     color: #f1f5f9;
