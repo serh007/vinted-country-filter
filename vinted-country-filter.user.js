@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Vinted Country Badge & Filter
 // @namespace    https://github.com/
-// @version      1.5.0
+// @version      1.6.0
 // @description  Displays seller country badges and full item titles on Vinted cards, and lets you filter items by country across all Vinted domains (React Fiber + /api/v2/users, no captcha or login required)
 // @license      MIT
 // @match        https://www.vinted.lt/*
@@ -49,10 +49,14 @@
     const CONFIG = {
         // UI & country name locale: 'en' (English), 'lt' (Lithuanian), 'uk' (Ukrainian), or 'auto' (site language)
         DISPLAY_LOCALE: 'en',
+        // UI theme: 'auto' (follows browser/OS dark mode), 'light', or 'dark'
+        THEME: 'auto',
         // Show full item title on cards (enabled by default; can be toggled in the settings popover)
         SHOW_FULL_TITLE: true,
         // Also display seller city on item badges (e.g. "Lithuania · Vilnius")
         SHOW_CITY: false,
+        // Also display seller rating & review count on item badges (e.g. "Lithuania · ★4.9 (42)")
+        SHOW_RATING: false,
         // Use 2-letter ISO code instead of full country name on badges (true -> "LT", false -> "Lithuania")
         SHORT_CODE: false,
         // Highlight sellers from the current Vinted domain's local country in green
@@ -218,6 +222,7 @@
                 settings: 'Налаштування',
                 showFullTitle: 'Показувати повну назву товару',
                 showCity: 'Показувати місто продавця',
+                showRating: 'Показувати рейтинг продавця',
             };
         }
         if (lang.startsWith('en')) {
@@ -231,6 +236,7 @@
                 settings: 'Settings',
                 showFullTitle: 'Show full item title',
                 showCity: 'Show seller city on badges',
+                showRating: 'Show seller rating on badges',
             };
         }
         return {
@@ -243,6 +249,7 @@
             settings: 'Nustatymai',
             showFullTitle: 'Rodyti visą prekės pavadinimą',
             showCity: 'Rodyti pardavėjo miestą',
+            showRating: 'Rodyti pardavėjo įvertinimą',
         };
     }
 
@@ -255,6 +262,7 @@
         collapsed: false,
         showFullTitle: CONFIG.SHOW_FULL_TITLE,
         showCity: CONFIG.SHOW_CITY,
+        showRating: CONFIG.SHOW_RATING,
     };
 
     function loadFilterState() {
@@ -281,6 +289,9 @@
             if (typeof parsed.showCity === 'boolean') {
                 filterState.showCity = parsed.showCity;
             }
+            if (typeof parsed.showRating === 'boolean') {
+                filterState.showRating = parsed.showRating;
+            }
         } catch {
             // Ignore corrupted state
         }
@@ -296,6 +307,7 @@
                     collapsed: filterState.collapsed,
                     showFullTitle: filterState.showFullTitle,
                     showCity: filterState.showCity,
+                    showRating: filterState.showRating,
                 })
             );
         } catch {
@@ -309,11 +321,23 @@
 
     /* =========================
        Compact seller LRU cache in localStorage
-       Entry format: [iso, fallbackName, city, savedAtUnixSec]
+       Entry format: [iso, fallbackName, city, savedAtUnixSec, rating, reviews]
     ========================== */
     const sellerCache = new Map();
     const deadSellers = new Set(); // 404/deleted sellers for this session
     let saveTimer = null;
+
+    function serializeCacheEntries() {
+        const obj = {};
+        for (const [uid, v] of sellerCache.entries()) {
+            const arr = [v.iso, v.name, v.city, v.ts];
+            if (typeof v.reviews === 'number') {
+                arr.push(typeof v.rating === 'number' ? v.rating : 0, v.reviews);
+            }
+            obj[uid] = arr;
+        }
+        return JSON.stringify(obj);
+    }
 
     function loadCache() {
         try {
@@ -324,9 +348,16 @@
             const cutoffSec = Math.floor((Date.now() - CACHE_TTL_MS) / 1000);
             for (const [uid, entry] of Object.entries(parsed)) {
                 if (!Array.isArray(entry) || entry.length < 4) continue;
-                const [iso, name, city, ts] = entry;
+                const [iso, name, city, ts, rating, reviews] = entry;
                 if (typeof ts !== 'number' || ts < cutoffSec || !iso) continue;
-                sellerCache.set(uid, { iso, name: name || '', city: city || '', ts });
+                sellerCache.set(uid, {
+                    iso,
+                    name: name || '',
+                    city: city || '',
+                    ts,
+                    rating: typeof rating === 'number' ? rating : null,
+                    reviews: typeof reviews === 'number' ? reviews : null,
+                });
             }
         } catch {
             // Ignore corrupted cache
@@ -348,11 +379,7 @@
                 const oldestKey = sellerCache.keys().next().value;
                 sellerCache.delete(oldestKey);
             }
-            const obj = {};
-            for (const [uid, v] of sellerCache.entries()) {
-                obj[uid] = [v.iso, v.name, v.city, v.ts];
-            }
-            localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(obj));
+            localStorage.setItem(CACHE_STORAGE_KEY, serializeCacheEntries());
         } catch {
             try {
                 const keep = Math.floor(sellerCache.size / 2);
@@ -360,11 +387,7 @@
                     const oldestKey = sellerCache.keys().next().value;
                     sellerCache.delete(oldestKey);
                 }
-                const obj = {};
-                for (const [uid, v] of sellerCache.entries()) {
-                    obj[uid] = [v.iso, v.name, v.city, v.ts];
-                }
-                localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(obj));
+                localStorage.setItem(CACHE_STORAGE_KEY, serializeCacheEntries());
             } catch {
                 // Fall back to in-memory cache only
             }
@@ -392,6 +415,8 @@
             name: data.name || '',
             city: data.city || '',
             ts: Math.floor(Date.now() / 1000),
+            rating: typeof data.rating === 'number' ? data.rating : null,
+            reviews: typeof data.reviews === 'number' ? data.reviews : null,
         });
         scheduleCacheSave();
     }
@@ -645,6 +670,71 @@
                 cursor: pointer;
                 margin: 0;
             }
+
+            /* Automatic dark mode (or forced via CONFIG.THEME = 'dark') */
+            ${CONFIG.THEME === 'dark' ? `
+            #vlt-filter-bar, #vlt-settings-popover {
+                background: rgba(24, 28, 36, 0.94);
+                border-color: rgba(255, 255, 255, 0.14);
+                color: #f1f5f9;
+            }
+            #vlt-filter-bar .vlt-chip, #vlt-filter-bar .vlt-icon-btn {
+                background: #232936;
+                border-color: rgba(255, 255, 255, 0.12);
+                color: #e2e8f0;
+            }
+            #vlt-filter-bar .vlt-chip:hover, #vlt-filter-bar .vlt-icon-btn:hover, #vlt-filter-bar .vlt-icon-btn.vlt-icon-btn-active {
+                background: #2d3748;
+                border-color: #38bdf8;
+                color: #ffffff;
+            }
+            #vlt-filter-bar .vlt-chip.vlt-chip-active {
+                background: #007782;
+                border-color: #00a3b2;
+                color: #ffffff;
+            }
+            #vlt-filter-bar .vlt-chip.vlt-chip-active.vlt-chip-local {
+                background: #117645;
+                border-color: #1ea866;
+            }
+            #vlt-filter-bar .vlt-bar-divider {
+                background: rgba(255, 255, 255, 0.14);
+            }
+            #vlt-filter-bar .vlt-bar-progress, #vlt-settings-popover .vlt-settings-title {
+                color: #4fd1c5;
+            }` : CONFIG.THEME === 'auto' ? `
+            @media (prefers-color-scheme: dark) {
+                #vlt-filter-bar, #vlt-settings-popover {
+                    background: rgba(24, 28, 36, 0.94);
+                    border-color: rgba(255, 255, 255, 0.14);
+                    color: #f1f5f9;
+                }
+                #vlt-filter-bar .vlt-chip, #vlt-filter-bar .vlt-icon-btn {
+                    background: #232936;
+                    border-color: rgba(255, 255, 255, 0.12);
+                    color: #e2e8f0;
+                }
+                #vlt-filter-bar .vlt-chip:hover, #vlt-filter-bar .vlt-icon-btn:hover, #vlt-filter-bar .vlt-icon-btn.vlt-icon-btn-active {
+                    background: #2d3748;
+                    border-color: #38bdf8;
+                    color: #ffffff;
+                }
+                #vlt-filter-bar .vlt-chip.vlt-chip-active {
+                    background: #007782;
+                    border-color: #00a3b2;
+                    color: #ffffff;
+                }
+                #vlt-filter-bar .vlt-chip.vlt-chip-active.vlt-chip-local {
+                    background: #117645;
+                    border-color: #1ea866;
+                }
+                #vlt-filter-bar .vlt-bar-divider {
+                    background: rgba(255, 255, 255, 0.14);
+                }
+                #vlt-filter-bar .vlt-bar-progress, #vlt-settings-popover .vlt-settings-title {
+                    color: #4fd1c5;
+                }
+            }` : ''}
         `;
         document.head.appendChild(style);
     }
@@ -806,8 +896,16 @@
         }
 
         const showCity = filterState.showCity ? '1' : '0';
+        const showRating = filterState.showRating ? '1' : '0';
         let badge = container.querySelector(':scope > .vlt-country-badge');
-        if (!force && badge && badge.dataset.uid === uid && badge.dataset.iso === info.iso && badge.dataset.city === showCity) {
+        if (
+            !force &&
+            badge &&
+            badge.dataset.uid === uid &&
+            badge.dataset.iso === info.iso &&
+            badge.dataset.city === showCity &&
+            badge.dataset.rating === showRating
+        ) {
             return;
         }
 
@@ -824,17 +922,26 @@
         badge.dataset.uid = uid;
         badge.dataset.iso = iso;
         badge.dataset.city = showCity;
+        badge.dataset.rating = showRating;
 
         const countryLabel = getCountryLabel(iso, info.name);
-        const text = filterState.showCity && info.city
-            ? `${countryLabel} · ${info.city}`
-            : countryLabel;
+        const parts = [countryLabel];
+        if (filterState.showCity && info.city) {
+            parts.push(info.city);
+        }
+        if (filterState.showRating && typeof info.reviews === 'number') {
+            if (info.reviews > 0 && typeof info.rating === 'number') {
+                parts.push(`★${info.rating.toFixed(1)} (${info.reviews})`);
+            } else {
+                parts.push('★0');
+            }
+        }
 
         badge.textContent = '';
         badge.appendChild(createFlagNode(iso));
         const textSpan = document.createElement('span');
         textSpan.className = 'vlt-country-text';
-        textSpan.textContent = text;
+        textSpan.textContent = parts.join(' · ');
         badge.appendChild(textSpan);
     }
 
@@ -1064,10 +1171,16 @@
                 const user = data && data.user;
                 const iso = (user?.country_iso_code || user?.country_code || '').toUpperCase();
                 if (iso) {
+                    const reviews = typeof user?.feedback_count === 'number' ? user.feedback_count : null;
+                    const rep = typeof user?.feedback_reputation === 'number'
+                        ? Math.round(user.feedback_reputation * 50) / 10
+                        : null;
                     const info = {
                         iso,
                         name: user?.country_title_local || user?.country_title || iso,
                         city: user?.city || '',
+                        rating: rep,
+                        reviews,
                     };
                     cacheSet(uid, info);
                     applySellerToCards(uid, info);
@@ -1160,6 +1273,14 @@
         settingsPopoverEl.appendChild(
             makeToggleRow(ui.showCity, filterState.showCity, (val) => {
                 filterState.showCity = val;
+                saveFilterState();
+                reRenderAllBadges();
+            })
+        );
+
+        settingsPopoverEl.appendChild(
+            makeToggleRow(ui.showRating, filterState.showRating, (val) => {
+                filterState.showRating = val;
                 saveFilterState();
                 reRenderAllBadges();
             })

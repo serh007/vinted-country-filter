@@ -51,8 +51,10 @@ All options live in the `CONFIG` object at the top of [`vinted-country-filter.us
 | Option | Default | Description |
 |---|---|---|
 | `DISPLAY_LOCALE` | `'en'` | Language for UI & country names: `'en'`, `'lt'`, `'uk'`, or `'auto'` (follows Vinted's page language) |
+| `THEME` | `'auto'` | UI theme for filter bar & settings: `'auto'` (follows OS/browser dark mode), `'light'`, or `'dark'` |
 | `SHOW_FULL_TITLE` | `true` | Show full untruncated item title on cards (can also be toggled in the `⚙️` settings popover) |
 | `SHOW_CITY` | `false` | Show seller city alongside country on item badges (e.g., `Lithuania · Vilnius`, also toggleable in `⚙️`) |
+| `SHOW_RATING` | `false` | Show seller rating & review count on item badges (e.g., `Lithuania · ★4.9 (42)`, also toggleable in `⚙️`) |
 | `SHORT_CODE` | `false` | Show 2-letter ISO code (`LT`, `PL`, `FI`) instead of full country name on badges |
 | `HIGHLIGHT_LOCAL` | `true` | Highlight sellers from the current domain's country in green |
 | `SHOW_FILTER_BAR` | `true` | Show the floating bottom country filter bar (`false` for badges-only mode) |
