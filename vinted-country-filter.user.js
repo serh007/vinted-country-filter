@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Vinted Country Badge & Filter
 // @namespace    https://github.com/
-// @version      1.3.0
-// @description  Displays seller country badges on Vinted item cards and lets you filter items by country across all Vinted domains (React Fiber + /api/v2/users, no captcha or login required)
+// @version      1.4.0
+// @description  Displays seller country badges and full item titles on Vinted cards, and lets you filter items by country across all Vinted domains (React Fiber + /api/v2/users, no captcha or login required)
 // @license      MIT
 // @match        https://www.vinted.lt/*
 // @match        https://www.vinted.pl/*
@@ -49,6 +49,8 @@
     const CONFIG = {
         // UI & country name locale: 'en' (English), 'lt' (Lithuanian), 'uk' (Ukrainian), or 'auto' (site language)
         DISPLAY_LOCALE: 'en',
+        // Show full item title on cards (enabled by default; can be toggled in the settings popover)
+        SHOW_FULL_TITLE: true,
         // Also display seller city on item badges (e.g. "Lithuania · Vilnius")
         SHOW_CITY: false,
         // Use 2-letter ISO code instead of full country name on badges (true -> "LT", false -> "Lithuania")
@@ -213,6 +215,9 @@
                 collapse: 'Згорнути панель',
                 expand: 'Фільтр країн',
                 multiHint: 'Клік — тільки ця країна · Ctrl+клік — кілька країн',
+                settings: 'Налаштування',
+                showFullTitle: 'Показувати повну назву товару',
+                showCity: 'Показувати місто продавця',
             };
         }
         if (lang.startsWith('en')) {
@@ -223,6 +228,9 @@
                 collapse: 'Minimize bar',
                 expand: 'Country filter',
                 multiHint: 'Click — only this country · Ctrl+click — multiple countries',
+                settings: 'Settings',
+                showFullTitle: 'Show full item title',
+                showCity: 'Show seller city on badges',
             };
         }
         return {
@@ -232,16 +240,21 @@
             collapse: 'Sutraukti juostą',
             expand: 'Šalies filtras',
             multiHint: 'Paspaudimas — tik ši šalis · Ctrl+paspaudimas — kelios šalys',
+            settings: 'Nustatymai',
+            showFullTitle: 'Rodyti visą prekės pavadinimą',
+            showCity: 'Rodyti pardavėjo miestą',
         };
     }
 
     /* =========================
-       Filter state (persisted across pages)
+       Filter & display state (persisted across pages)
     ========================== */
     const filterState = {
         selected: new Set(), // empty = show all countries
         mode: 'hide',        // 'hide' (remove from grid) | 'dim' (fade out)
         collapsed: false,
+        showFullTitle: CONFIG.SHOW_FULL_TITLE,
+        showCity: CONFIG.SHOW_CITY,
     };
 
     function loadFilterState() {
@@ -262,6 +275,12 @@
             if (typeof parsed.collapsed === 'boolean') {
                 filterState.collapsed = parsed.collapsed;
             }
+            if (typeof parsed.showFullTitle === 'boolean') {
+                filterState.showFullTitle = parsed.showFullTitle;
+            }
+            if (typeof parsed.showCity === 'boolean') {
+                filterState.showCity = parsed.showCity;
+            }
         } catch {
             // Ignore corrupted state
         }
@@ -275,6 +294,8 @@
                     selected: Array.from(filterState.selected),
                     mode: filterState.mode,
                     collapsed: filterState.collapsed,
+                    showFullTitle: filterState.showFullTitle,
+                    showCity: filterState.showCity,
                 })
             );
         } catch {
@@ -557,19 +578,82 @@
                 cursor: pointer;
                 transition: background 0.15s ease, border-color 0.15s ease;
             }
-            .vlt-icon-btn:hover {
+            .vlt-icon-btn:hover,
+            .vlt-icon-btn.vlt-icon-btn-active {
                 border-color: #007782;
                 background: #f0f9fa;
+                color: #007782;
+            }
+
+            /* Full item title displayed on cards */
+            .vlt-full-title {
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.32;
+                color: #151920;
+                margin-bottom: 3px;
+                white-space: normal;
+                word-break: break-word;
+                overflow-wrap: anywhere;
+            }
+
+            /* Settings popover above filter bar */
+            #vlt-settings-popover {
+                position: fixed;
+                bottom: 68px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 99991;
+                min-width: 240px;
+                padding: 10px 14px;
+                border-radius: 12px;
+                background: rgba(255, 255, 255, 0.97);
+                border: 1px solid rgba(0, 119, 130, 0.28);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
+                font-size: 12.5px;
+                color: #1a202c;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                user-select: none;
+            }
+            #vlt-settings-popover.vlt-popover-hidden {
+                display: none !important;
+            }
+            .vlt-settings-title {
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: #007782;
+                margin-bottom: 2px;
+            }
+            .vlt-setting-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+                padding: 2px 0;
+            }
+            .vlt-setting-row input[type="checkbox"] {
+                width: 15px;
+                height: 15px;
+                accent-color: #007782;
+                cursor: pointer;
+                margin: 0;
             }
         `;
         document.head.appendChild(style);
     }
 
     /* =========================
-       Seller userId extraction via React Fiber (0 network requests)
+       Seller userId & item title extraction via React Fiber (0 network requests)
     ========================== */
-    function extractUserIdFromElement(el) {
-        if (!el) return null;
+    function extractItemMetaFromElement(el) {
+        if (!el) return { uid: null, title: '' };
         let fiberKey = null;
         const keys = Object.keys(el);
         for (let i = 0; i < keys.length; i++) {
@@ -579,22 +663,43 @@
             }
         }
         let cur = fiberKey ? el[fiberKey] : null;
+        let uid = null;
+        let title = '';
         for (let depth = 0; depth < 25 && cur; depth++) {
             const p = cur.memoizedProps;
             if (p) {
-                const uid =
-                    p.item?.user?.id ||
-                    p.item?.user_id ||
-                    p.productItem?.user?.id ||
-                    p.user?.id ||
-                    p.catalogTracking?.ownerId ||
-                    p.tracking?.ownerId ||
-                    p.ownerId;
-                if (uid) return String(uid);
+                if (!uid) {
+                    const foundUid =
+                        p.item?.user?.id ||
+                        p.item?.user_id ||
+                        p.productItem?.user?.id ||
+                        p.user?.id ||
+                        p.catalogTracking?.ownerId ||
+                        p.tracking?.ownerId ||
+                        p.ownerId;
+                    if (foundUid) uid = String(foundUid);
+                }
+                if (!title) {
+                    const foundTitle =
+                        p.item?.title ||
+                        p.productItem?.title ||
+                        p.itemTitle;
+                    if (typeof foundTitle === 'string' && foundTitle.trim()) {
+                        title = foundTitle.trim();
+                    }
+                }
+                if (uid && title) break;
             }
             cur = cur.return;
         }
-        return null;
+        if (!title && el.title) {
+            title = el.title.split(',')[0].trim();
+        }
+        return { uid, title };
+    }
+
+    function extractUserIdFromElement(el) {
+        return extractItemMetaFromElement(el).uid;
     }
 
     function getFilterTarget(container, uid) {
@@ -623,7 +728,7 @@
     /* =========================
        Card registry, badge rendering, and filter application
     ========================== */
-    // container -> { uid, iso, filterTarget }
+    // container -> { uid, title, iso, filterTarget }
     const trackedCards = new Map();
     // userId -> Set<HTMLElement> (all cards by this seller on the current page)
     const sellerCards = new Map();
@@ -639,7 +744,59 @@
     let pausedUntil = 0;
     let resumeTimer = null;
 
-    function renderBadge(container, uid, info) {
+    function renderFullTitle(container, title) {
+        if (!container || !container.isConnected) return;
+        const box = container.closest('[class*="new-item-box__container"]') || container.parentElement;
+        if (!box) return;
+
+        const existing = box.querySelector('.vlt-full-title');
+        if (!filterState.showFullTitle || !title) {
+            if (existing) existing.remove();
+            return;
+        }
+
+        if (existing) {
+            if (existing.textContent !== title) {
+                existing.textContent = title;
+            }
+            return;
+        }
+
+        const descContent =
+            box.querySelector('[data-testid$="--description--content"]') ||
+            box.querySelector('[data-testid$="--description"]');
+        if (!descContent) return;
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'vlt-full-title';
+        titleEl.textContent = title;
+        descContent.prepend(titleEl);
+    }
+
+    function applyFullTitleToAllCards() {
+        for (const [container, rec] of trackedCards.entries()) {
+            if (!container.isConnected) {
+                cleanupCard(container);
+                continue;
+            }
+            renderFullTitle(container, rec.title);
+        }
+    }
+
+    function reRenderAllBadges() {
+        for (const [container, rec] of trackedCards.entries()) {
+            if (!container.isConnected) {
+                cleanupCard(container);
+                continue;
+            }
+            const cached = cacheGet(rec.uid);
+            if (cached) {
+                renderBadge(container, rec.uid, cached, true);
+            }
+        }
+    }
+
+    function renderBadge(container, uid, info, force = false) {
         if (!container || !container.isConnected || !info || !info.iso) return;
         if (container.dataset.vltUid && container.dataset.vltUid !== uid) return;
 
@@ -647,8 +804,9 @@
             container.style.position = 'relative';
         }
 
+        const showCity = filterState.showCity ? '1' : '0';
         let badge = container.querySelector(':scope > .vlt-country-badge');
-        if (badge && badge.dataset.uid === uid && badge.dataset.iso === info.iso) {
+        if (!force && badge && badge.dataset.uid === uid && badge.dataset.iso === info.iso && badge.dataset.city === showCity) {
             return;
         }
 
@@ -664,9 +822,10 @@
             : 'vlt-country-badge';
         badge.dataset.uid = uid;
         badge.dataset.iso = iso;
+        badge.dataset.city = showCity;
 
         const countryLabel = getCountryLabel(iso, info.name);
-        const text = CONFIG.SHOW_CITY && info.city
+        const text = filterState.showCity && info.city
             ? `${countryLabel} · ${info.city}`
             : countryLabel;
 
@@ -728,9 +887,10 @@
         visibleCards.delete(container);
     }
 
-    function registerCard(container, uid) {
+    function registerCard(container, uid, title) {
         const prev = trackedCards.get(container);
         if (prev && prev.uid === uid) {
+            if (title && prev.title !== title) prev.title = title;
             return prev;
         }
 
@@ -747,6 +907,7 @@
         container.dataset.vltUid = uid;
         const record = {
             uid,
+            title: title || '',
             iso: '',
             filterTarget: getFilterTarget(container, uid),
         };
@@ -954,8 +1115,65 @@
     let chipsContainerEl = null;
     let progressEl = null;
     let modeBtnEl = null;
+    let settingsBtnEl = null;
+    let settingsPopoverEl = null;
+    let settingsOpen = false;
     let collapseBtnEl = null;
     let expandBtnEl = null;
+
+    function ensureSettingsPopover(ui) {
+        if (settingsPopoverEl && settingsPopoverEl.isConnected) return settingsPopoverEl;
+        settingsPopoverEl = document.createElement('div');
+        settingsPopoverEl.id = 'vlt-settings-popover';
+        settingsPopoverEl.className = 'vlt-popover-hidden';
+
+        const header = document.createElement('div');
+        header.className = 'vlt-settings-title';
+        header.textContent = ui.settings;
+        settingsPopoverEl.appendChild(header);
+
+        const makeToggleRow = (labelText, checked, onChange) => {
+            const row = document.createElement('label');
+            row.className = 'vlt-setting-row';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = checked;
+            cb.addEventListener('change', () => onChange(cb.checked));
+            const span = document.createElement('span');
+            span.textContent = labelText;
+            row.appendChild(cb);
+            row.appendChild(span);
+            return row;
+        };
+
+        settingsPopoverEl.appendChild(
+            makeToggleRow(ui.showFullTitle, filterState.showFullTitle, (val) => {
+                filterState.showFullTitle = val;
+                saveFilterState();
+                applyFullTitleToAllCards();
+            })
+        );
+
+        settingsPopoverEl.appendChild(
+            makeToggleRow(ui.showCity, filterState.showCity, (val) => {
+                filterState.showCity = val;
+                saveFilterState();
+                reRenderAllBadges();
+            })
+        );
+
+        document.body.appendChild(settingsPopoverEl);
+        return settingsPopoverEl;
+    }
+
+    function setSettingsOpen(open, ui) {
+        settingsOpen = open;
+        const pop = ensureSettingsPopover(ui || getUiStrings());
+        pop.classList.toggle('vlt-popover-hidden', !open);
+        if (settingsBtnEl) {
+            settingsBtnEl.classList.toggle('vlt-icon-btn-active', open);
+        }
+    }
 
     function ensureFilterBar() {
         if (!CONFIG.SHOW_FILTER_BAR) return null;
@@ -1057,6 +1275,17 @@
         });
         bar.appendChild(modeBtnEl);
 
+        settingsBtnEl = document.createElement('button');
+        settingsBtnEl.type = 'button';
+        settingsBtnEl.className = 'vlt-icon-btn';
+        settingsBtnEl.textContent = '⚙️';
+        settingsBtnEl.title = ui.settings;
+        settingsBtnEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setSettingsOpen(!settingsOpen, ui);
+        });
+        bar.appendChild(settingsBtnEl);
+
         collapseBtnEl = document.createElement('button');
         collapseBtnEl.type = 'button';
         collapseBtnEl.className = 'vlt-icon-btn';
@@ -1064,6 +1293,7 @@
         collapseBtnEl.title = ui.collapse;
         collapseBtnEl.addEventListener('click', () => {
             filterState.collapsed = true;
+            setSettingsOpen(false, ui);
             saveFilterState();
             renderFilterBar();
         });
@@ -1076,6 +1306,7 @@
         bar.textContent = '';
         bar.classList.add('vlt-bar-collapsed');
         chipButtons.clear();
+        setSettingsOpen(false, ui);
 
         expandBtnEl = document.createElement('button');
         expandBtnEl.type = 'button';
@@ -1118,6 +1349,7 @@
             if (!bar.classList.contains('vlt-bar-hidden')) {
                 bar.classList.add('vlt-bar-hidden');
             }
+            if (settingsOpen) setSettingsOpen(false);
             return;
         }
         if (bar.classList.contains('vlt-bar-hidden')) {
@@ -1236,10 +1468,11 @@
             const container = link.closest('[class*="image-container"]') || link.parentElement;
             if (!container) continue;
 
-            const uid = extractUserIdFromElement(link);
+            const { uid, title } = extractItemMetaFromElement(link);
             if (!uid) continue;
 
-            const record = registerCard(container, uid);
+            const record = registerCard(container, uid, title);
+            renderFullTitle(container, record.title);
 
             // Render and filter immediately if seller is already cached
             const cached = cacheGet(uid);
@@ -1277,8 +1510,10 @@
         if (!node || node.nodeType !== 1) return false;
         return (
             node.id === 'vlt-filter-bar' ||
+            node.id === 'vlt-settings-popover' ||
             node.id === 'vlt-country-badge-styles' ||
-            node.classList.contains('vlt-country-badge')
+            node.classList.contains('vlt-country-badge') ||
+            node.classList.contains('vlt-full-title')
         );
     }
 
@@ -1286,7 +1521,7 @@
         for (let i = 0; i < mutations.length; i++) {
             const m = mutations[i];
             const t = m.target;
-            if (t && t.nodeType === 1 && t.closest('#vlt-filter-bar, .vlt-country-badge')) {
+            if (t && t.nodeType === 1 && t.closest('#vlt-filter-bar, #vlt-settings-popover, .vlt-country-badge, .vlt-full-title')) {
                 continue;
             }
             let hasExternalChange = false;
@@ -1323,6 +1558,16 @@
     domObserver.observe(document.body, {
         childList: true,
         subtree: true,
+    });
+
+    // Close settings popover on outside click
+    document.addEventListener('click', (e) => {
+        if (!settingsOpen) return;
+        const target = e.target;
+        if (target && target.nodeType === 1 && target.closest('#vlt-settings-popover, #vlt-filter-bar')) {
+            return;
+        }
+        setSettingsOpen(false);
     });
 
     // Flush cache & pause queue when tab is hidden; resume when tab returns
