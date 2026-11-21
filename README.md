@@ -1,5 +1,7 @@
 # Vinted Country Badge & Filter
 
+[![Install from Greasy Fork](https://img.shields.io/badge/Install-Greasy%20Fork-670000?style=for-the-badge)](https://greasyfork.org/uk/scripts/606593-vinted-country-badge-filter)
+
 A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **all Vinted domains** that displays each seller's country right on item cards and provides a compact client-side country filter bar.
 
 ## Screenshots
@@ -39,7 +41,7 @@ A lightweight, zero-dependency Tampermonkey / Violentmonkey userscript for **all
 1. Install a userscript manager in your browser:
    - [Tampermonkey](https://www.tampermonkey.net/) (Chrome, Firefox, Edge, Safari)
    - [Violentmonkey](https://violentmonkey.github.io/) (Chrome, Firefox, Edge)
-2. Create a new userscript and paste the contents of [`vinted-country-filter.user.js`](./vinted-country-filter.user.js) (or open its Raw URL directly on GitHub to install in one click).
+2. **[Install directly from Greasy Fork](https://greasyfork.org/uk/scripts/606593-vinted-country-badge-filter)** — or create a new userscript and paste the contents of [`vinted-country-filter.user.js`](./vinted-country-filter.user.js).
 3. Visit any supported Vinted site and browse normally.
 
 ## Configuration
